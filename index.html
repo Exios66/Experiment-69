@@ -217,6 +217,8 @@
       100% { transform: rotate(360deg); }
     }
   </style>
+  <!-- Preload WebGazer script -->
+  <script src="https://webgazer.cs.brown.edu/webgazer.js" defer></script>
 </head>
 <body>
   <div id="experiment-container">
@@ -566,8 +568,49 @@
       }
     }
     
-    // Load WebGazer script with retries
-    function loadWebGazer(retryCount = 0) {
+    // Check if WebGazer is already loaded
+    function checkWebGazerLoaded() {
+      return new Promise((resolve) => {
+        // First check if it's already available
+        if (typeof webgazer !== 'undefined') {
+          logger.info('WebGazer already loaded');
+          state.webgazerLoaded = true;
+          resolve(true);
+          return;
+        }
+        
+        // If not, wait for it to load (it's included with defer attribute)
+        logger.info('Waiting for WebGazer to load...');
+        toggleLoading(true, 'Loading WebGazer...');
+        
+        // Set a timeout to check periodically
+        const checkInterval = setInterval(() => {
+          if (typeof webgazer !== 'undefined') {
+            clearInterval(checkInterval);
+            clearTimeout(timeoutId);
+            logger.info('WebGazer loaded successfully');
+            toggleLoading(false);
+            state.webgazerLoaded = true;
+            resolve(true);
+          }
+        }, 200);
+        
+        // Set a timeout in case it never loads
+        const timeoutId = setTimeout(() => {
+          clearInterval(checkInterval);
+          logger.error('WebGazer load timed out, falling back to manual loading');
+          toggleLoading(false);
+          resolve(false);
+        }, 10000);
+      });
+    }
+    
+    // Load WebGazer script with retries if the preloaded version fails
+    async function loadWebGazer(retryCount = 0) {
+      // First check if WebGazer is already loaded via the preloaded script
+      const preloaded = await checkWebGazerLoaded();
+      if (preloaded) return true;
+      
       return new Promise((resolve, reject) => {
         const maxRetries = 3;
         const sources = [
