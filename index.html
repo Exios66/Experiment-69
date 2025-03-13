@@ -571,9 +571,9 @@
       return new Promise((resolve, reject) => {
         const maxRetries = 3;
         const sources = [
-          './webgazer-2.0.1.js',
-          './webgazer-2.0.1.tp.js',
-          'https://webgazer.cs.brown.edu/webgazer-2.0.1.js'
+          './webgazer.js',
+          './webgazer.commonjs2.js',
+          'https://webgazer.cs.brown.edu/webgazer.js'
         ];
         
         if (retryCount >= sources.length) {

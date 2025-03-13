@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebGazer Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f0f0f0;
+    }
+    #status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 5px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .loading {
+      background-color: #fff3cd;
+      color: #856404;
+      border: 1px solid #ffeeba;
+    }
+  </style>
+</head>
+<body>
+  <h1>WebGazer Script Loading Test</h1>
+  <div id="status" class="loading">Loading WebGazer script...</div>
+  <div id="details"></div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const statusElement = document.getElementById('status');
+      const detailsElement = document.getElementById('details');
+      
+      function updateStatus(message, type) {
+        statusElement.textContent = message;
+        statusElement.className = type;
+      }
+      
+      function addDetail(message) {
+        const p = document.createElement('p');
+        p.textContent = message;
+        detailsElement.appendChild(p);
+      }
+      
+      function loadWebGazer() {
+        updateStatus('Loading WebGazer script...', 'loading');
+        
+        const script = document.createElement('script');
+        script.src = './webgazer.js';
+        
+        script.onload = function() {
+          updateStatus('WebGazer script loaded successfully!', 'success');
+          addDetail('Script loaded: ./webgazer.js');
+          
+          // Check if webgazer object is available
+          if (typeof webgazer !== 'undefined') {
+            addDetail('WebGazer object is available in the global scope');
+            addDetail(`WebGazer version: ${webgazer.version ? webgazer.version : 'unknown'}`);
+          } else {
+            addDetail('ERROR: WebGazer object is not available in the global scope');
+          }
+        };
+        
+        script.onerror = function() {
+          updateStatus('Failed to load WebGazer script', 'error');
+          addDetail('Error loading script: ./webgazer.js');
+          
+          // Try loading the alternative script
+          const altScript = document.createElement('script');
+          altScript.src = './webgazer.commonjs2.js';
+          
+          altScript.onload = function() {
+            updateStatus('Alternative WebGazer script loaded successfully!', 'success');
+            addDetail('Script loaded: ./webgazer.commonjs2.js');
+            
+            // Check if webgazer object is available
+            if (typeof webgazer !== 'undefined') {
+              addDetail('WebGazer object is available in the global scope');
+              addDetail(`WebGazer version: ${webgazer.version ? webgazer.version : 'unknown'}`);
+            } else {
+              addDetail('ERROR: WebGazer object is not available in the global scope');
+            }
+          };
+          
+          altScript.onerror = function() {
+            updateStatus('Failed to load all WebGazer scripts', 'error');
+            addDetail('Error loading script: ./webgazer.commonjs2.js');
+          };
+          
+          document.head.appendChild(altScript);
+        };
+        
+        document.head.appendChild(script);
+      }
+      
+      // Start loading the script
+      loadWebGazer();
+    });
+  </script>
+</body>
+</html> 
