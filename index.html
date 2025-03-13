@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eye Tracking Experiment</title>
+  <style>
+    /* Improved CSS styles */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #1a1a1a;
+      color: #fff;
+      line-height: 1.6;
+    }
+    #experiment-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .screen {
+      display: none;
+      min-height: 600px;
+    }
+    .screen.active {
+      display: block;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      margin: 10px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      display: inline-block;
+      transition: background-color 0.3s;
+    }
+    .button:hover {
+      background: #45a049;
+    }
+    .button:disabled {
+      background: #888;
+      cursor: not-allowed;
+    }
+    .centered {
+      text-align: center;
+      margin: 20px 0;
+    }
+    #calibration-area, #tracking-area {
+      position: relative;
+      width: 100%;
+      height: 500px;
+      border: 1px solid #444;
+      margin: 20px 0;
+      background: #222;
+      overflow: hidden;
+    }
+    .calibration-point {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: red;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: background-color 0.3s, transform 0.3s;
+      cursor: pointer;
+    }
+    .calibration-point.calibrated {
+      background: green;
+      cursor: default;
+    }
+    #tracking-target {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      background: green;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: left 0.5s ease-out, top 0.5s ease-out;
+    }
+    #gaze-point {
+      position: absolute;
+      width: 15px;
+      height: 15px;
+      background: rgba(0, 128, 255, 0.7);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      z-index: 100;
+      transition: left 0.1s ease-out, top 0.1s ease-out;
+    }
+    #debug-panel {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      width: 300px;
+      height: 200px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #444;
+      padding: 10px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 12px;
+      z-index: 1000;
+    }
+    .webcam-box {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      width: 200px;
+      height: 150px;
+      border: 1px solid #444;
+      z-index: 900;
+      background: #333;
+      overflow: hidden;
+    }
+    .stats {
+      position: fixed;
+      bottom: 220px;
+      right: 10px;
+      width: 300px;
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid #444;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 12px;
+      z-index: 1000;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      background: #333;
+      margin-top: 10px;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: #4CAF50;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .error-message {
+      color: #ff6b6b;
+      font-weight: bold;
+      padding: 10px;
+      margin: 10px 0;
+      background: rgba(255, 0, 0, 0.1);
+      border-left: 4px solid #ff6b6b;
+    }
+    #status-indicator {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: #888;
+      margin-right: 5px;
+    }
+    #status-indicator.active {
+      background-color: #4CAF50;
+    }
+    #status-indicator.error {
+      background-color: #ff6b6b;
+    }
+    #status-text {
+      font-size: 12px;
+    }
+    .log-entry {
+      margin: 2px 0;
+      word-wrap: break-word;
+    }
+    .log-error {
+      color: #ff6b6b;
+    }
+    .log-warn {
+      color: #ffbb33;
+    }
+    .log-info {
+      color: #33b5e5;
+    }
+    .controls-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 10px 0;
+    }
+    #loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+    .spinner {
+      border: 5px solid #333;
+      border-radius: 50%;
+      border-top: 5px solid #4CAF50;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="experiment-container">
+    <!-- Welcome Screen -->
+    <div id="welcome-screen" class="screen active">
+      <h1>Eye Tracking Experiment</h1>
+      <p>Welcome to the eye tracking experiment. You will need to allow camera access for this experiment to work.</p>
+      <p>The experiment will proceed in the following steps:</p>
+      <ol>
+        <li>Setup and camera calibration</li>
+        <li>Tracking task (follow the green dot with your eyes)</li>
+        <li>Results and data collection</li>
+      </ol>
+      <div class="centered">
+        <button id="start-btn" class="button">Begin Experiment</button>
+      </div>
+    </div>
+    
+    <!-- Calibration Screen -->
+    <div id="calibration-screen" class="screen">
+      <h2>Eye Tracking Calibration</h2>
+      <p>Please look at each point and click on it when it turns green. Click each point <strong>5 times</strong> for best calibration.</p>
+      <p>Try to keep your head still during calibration for best results.</p>
+      <div id="calibration-area"></div>
+      <div class="controls-container">
+        <div>
+          <span id="status-indicator"></span>
+          <span id="status-text">Ready</span>
+        </div>
+        <div>
+          <button id="skip-calibration-btn" class="button">Skip Calibration</button>
+          <button id="continue-calibration-btn" class="button" disabled>Continue to Tracking</button>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div id="calibration-progress" class="progress-fill"></div>
+      </div>
+    </div>
+    
+    <!-- Tracking Screen -->
+    <div id="tracking-screen" class="screen">
+      <h2>Tracking Task</h2>
+      <p>Follow the green dot with your eyes. Your gaze is shown as a blue dot.</p>
+      <div id="tracking-area">
+        <div id="tracking-target"></div>
+      </div>
+      <div class="controls-container">
+        <div>
+          Time remaining: <span id="time-remaining">60</span> seconds
+        </div>
+        <div>
+          <button id="end-test-btn" class="button">End Test</button>
+        </div>
+      </div>
+      <div class="progress-bar">
+        <div id="tracking-progress" class="progress-fill"></div>
+      </div>
+    </div>
+    
+    <!-- Results Screen -->
+    <div id="results-screen" class="screen">
+      <h2>Test Results</h2>
+      <div id="results-content">
+        <p>Thank you for participating in the eye tracking experiment.</p>
+        <p>Your data has been collected and will be used for research purposes.</p>
+      </div>
+      <div class="centered">
+        <button id="export-data-btn" class="button">Export Gaze Data</button>
+        <button id="restart-btn" class="button">Restart Experiment</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Debug & Status Elements -->
+  <div id="gaze-point"></div>
+  <div id="webcam-container" class="webcam-box"></div>
+  <div class="stats">
+    <div>Gaze X: <span id="gaze-x">0</span></div>
+    <div>Gaze Y: <span id="gaze-y">0</span></div>
+    <div>Points: <span id="point-count">0</span></div>
+    <div>FPS: <span id="fps-count">0</span></div>
+  </div>
+  <div id="debug-panel"></div>
+  
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" style="display: none;">
+    <div class="spinner"></div>
+    <p id="loading-text">Loading WebGazer...</p>
+  </div>
+  
+  <script>
+    // Configuration object for easy experiment tuning
+    const CONFIG = {
+      calibrationPoints: 9,
+      trackingDuration: 60, // seconds
+      smoothingWindow: 5,
+      targetUpdateInterval: 2000, // ms
+      minCalibrationClicks: 5,
+      debugMode: true,
+      logLevel: 'info', // error, warn, info, debug
+      enableDataCollection: true,
+      maxGazePoints: 10000, // Limit storage to avoid memory issues
+      cameraSettings: {
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: 'user',
+        frameRate: { ideal: 30 }
+      }
+    };
+    
+    // Global state variables
+    const state = {
+      gazeData: [],
+      pointsCollected: 0,
+      isCalibrated: false,
+      isExperimentRunning: false,
+      startTime: null,
+      lastFrameTime: null,
+      fps: 0,
+      frameCounter: 0,
+      lastFpsUpdate: 0,
+      trackingTimer: null,
+      targetTimer: null,
+      webgazerLoaded: false,
+      webgazerInitialized: false,
+      gazeHistory: { x: [], y: [] },
+      calibrationClicks: 0 // Total calibration clicks
+    };
+    
+    // Logger implementation with levels and timestamps
+    class Logger {
+      constructor(options = {}) {
+        this.debugPanel = document.getElementById('debug-panel');
+        this.levels = {
+          error: 0,
+          warn: 1,
+          info: 2,
+          debug: 3
+        };
+        this.currentLevel = this.levels[options.level || 'info'];
+        this.maxEntries = options.maxEntries || 100;
+        this.entries = [];
+        
+        // Create console methods that map to our logger
+        this.createConsoleMethods();
+      }
+      
+      createConsoleMethods() {
+        const originalConsole = {
+          log: console.log,
+          info: console.info,
+          warn: console.warn,
+          error: console.error,
+          debug: console.debug
+        };
+        
+        console.log = (...args) => {
+          originalConsole.log(...args);
+          this.info(...args);
+        };
+        
+        console.info = (...args) => {
+          originalConsole.info(...args);
+          this.info(...args);
+        };
+        
+        console.warn = (...args) => {
+          originalConsole.warn(...args);
+          this.warn(...args);
+        };
+        
+        console.error = (...args) => {
+          originalConsole.error(...args);
+          this.error(...args);
+        };
+        
+        console.debug = (...args) => {
+          originalConsole.debug(...args);
+          this.debug(...args);
+        };
+      }
+      
+      log(level, ...messages) {
+        if (this.levels[level] > this.currentLevel) return;
+        
+        const message = messages.map(m => {
+          if (typeof m === 'object') {
+            try {
+              return JSON.stringify(m);
+            } catch (e) {
+              return String(m);
+            }
+          }
+          return String(m);
+        }).join(' ');
+        
+        const timestamp = new Date().toISOString().substring(11, 23);
+        const entry = { level, message, timestamp };
+        
+        this.entries.push(entry);
+        if (this.entries.length > this.maxEntries) {
+          this.entries.shift();
+        }
+        
+        this.render();
+      }
+      
+      render() {
+        if (!this.debugPanel) return;
+        
+        this.debugPanel.innerHTML = '';
+        
+        // Add control buttons
+        const controls = document.createElement('div');
+        controls.style.marginBottom = '10px';
+        
+        const clearBtn = document.createElement('button');
+        clearBtn.textContent = 'Clear Logs';
+        clearBtn.className = 'button';
+        clearBtn.style.padding = '3px 8px';
+        clearBtn.style.fontSize = '11px';
+        clearBtn.style.marginRight = '5px';
+        clearBtn.onclick = () => {
+          this.entries = [];
+          this.render();
+        };
+        
+        const exportBtn = document.createElement('button');
+        exportBtn.textContent = 'Export Logs';
+        exportBtn.className = 'button';
+        exportBtn.style.padding = '3px 8px';
+        exportBtn.style.fontSize = '11px';
+        exportBtn.onclick = () => {
+          this.exportLogs();
+        };
+        
+        controls.appendChild(clearBtn);
+        controls.appendChild(exportBtn);
+        this.debugPanel.appendChild(controls);
+        
+        // Add log entries
+        const fragment = document.createDocumentFragment();
+        this.entries.forEach(entry => {
+          const div = document.createElement('div');
+          div.className = `log-entry log-${entry.level}`;
+          div.textContent = `[${entry.timestamp}] ${entry.message}`;
+          fragment.appendChild(div);
+        });
+        
+        this.debugPanel.appendChild(fragment);
+        this.debugPanel.scrollTop = this.debugPanel.scrollHeight;
+      }
+      
+      exportLogs() {
+        try {
+          const logContent = this.entries.map(entry => 
+            `[${entry.timestamp}] [${entry.level.toUpperCase()}] ${entry.message}`
+          ).join('\n');
+          
+          const blob = new Blob([logContent], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `eye_tracking_logs_${Date.now()}.txt`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          this.info('Logs exported successfully');
+        } catch (error) {
+          this.error('Failed to export logs:', error.message);
+        }
+      }
+      
+      error(...messages) {
+        this.log('error', ...messages);
+      }
+      
+      warn(...messages) {
+        this.log('warn', ...messages);
+      }
+      
+      info(...messages) {
+        this.log('info', ...messages);
+      }
+      
+      debug(...messages) {
+        this.log('debug', ...messages);
+      }
+    }
+    
+    // Initialize logger
+    const logger = new Logger({
+      level: CONFIG.logLevel,
+      maxEntries: 200
+    });
+    
+    // Utility functions
+    function showScreen(screenId) {
+      try {
+        document.querySelectorAll('.screen').forEach(screen => {
+          screen.classList.remove('active');
+        });
+        const screen = document.getElementById(screenId);
+        if (!screen) {
+          throw new Error(`Screen not found: ${screenId}`);
+        }
+        screen.classList.add('active');
+        logger.info(`Showing screen: ${screenId}`);
+        // Reset progress bars
+        document.querySelectorAll('.progress-fill').forEach(bar => {
+          bar.style.width = '0%';
+        });
+      } catch (error) {
+        logger.error(`Failed to show screen: ${error.message}`);
+      }
+    }
+    
+    function toggleLoading(show, message = '') {
+      const overlay = document.getElementById('loading-overlay');
+      const loadingText = document.getElementById('loading-text');
+      
+      if (show) {
+        if (message) {
+          loadingText.textContent = message;
+        }
+        overlay.style.display = 'flex';
+      } else {
+        overlay.style.display = 'none';
+      }
+    }
+    
+    function updateStatus(text, type = 'default') {
+      const indicator = document.getElementById('status-indicator');
+      const statusText = document.getElementById('status-text');
+      
+      if (indicator && statusText) {
+        statusText.textContent = text;
+        indicator.className = '';
+        
+        if (type === 'active') {
+          indicator.classList.add('active');
+        } else if (type === 'error') {
+          indicator.classList.add('error');
+        }
+      }
+    }
+    
+    // Load WebGazer script with retries
+    function loadWebGazer(retryCount = 0) {
+      return new Promise((resolve, reject) => {
+        const maxRetries = 3;
+        const sources = [
+          './webgazer-2.0.1.js',
+          './webgazer-2.0.1.tp.js',
+          'https://webgazer.cs.brown.edu/webgazer-2.0.1.js'
+        ];
+        
+        if (retryCount >= sources.length) {
+          if (retryCount >= sources.length + maxRetries) {
+            logger.error('Failed to load WebGazer after all retries');
+            reject(new Error('Failed to load WebGazer after multiple attempts'));
+            return;
+          }
+          const backoffTime = Math.pow(2, retryCount - sources.length) * 1000;
+          logger.warn(`Retry with backoff: waiting ${backoffTime}ms before next attempt`);
+          setTimeout(() => {
+            loadWebGazer(retryCount + 1).then(resolve).catch(reject);
+          }, backoffTime);
+          return;
+        }
+        
+        const source = sources[retryCount % sources.length];
+        logger.info(`Loading WebGazer from: ${source}`);
+        toggleLoading(true, `Loading WebGazer (attempt ${retryCount + 1})...`);
+        
+        const script = document.createElement('script');
+        script.src = source;
+        
+        const timeoutId = setTimeout(() => {
+          logger.warn(`WebGazer load timed out from source: ${source}`);
+          script.onerror(new Error('Load timeout'));
+        }, 10000);
+        
+        script.onload = () => {
+          clearTimeout(timeoutId);
+          logger.info(`WebGazer loaded successfully from: ${source}`);
+          toggleLoading(false);
+          state.webgazerLoaded = true;
+          resolve(true);
+        };
+        
+        script.onerror = () => {
+          clearTimeout(timeoutId);
+          logger.warn(`Failed to load WebGazer from: ${source}, trying next source...`);
+          script.remove();
+          loadWebGazer(retryCount + 1).then(resolve).catch(reject);
+        };
+        
+        document.head.appendChild(script);
+      });
+    }
+    
+    async function initWebGazer() {
+      if (!state.webgazerLoaded) {
+        logger.error('WebGazer not loaded, cannot initialize');
+        return false;
+      }
+      
+      try {
+        logger.info('Initializing WebGazer...');
+        toggleLoading(true, 'Initializing camera and eye tracking...');
+        
+        if (typeof webgazer === 'undefined') {
+          throw new Error('WebGazer library not available');
+        }
+        
+        // Configure WebGazer parameters
+        webgazer.params.showVideo = true;
+        webgazer.params.showFaceOverlay = true;
+        webgazer.params.showFaceFeedbackBox = true;
+        webgazer.params.camConstraints = { 
+          video: CONFIG.cameraSettings
+        };
+        
+        webgazer.setRegression('ridge')
+               .setTracker('TFFacemesh')
+               .setGazeListener(handleGazeData);
+        
+        // Check camera permissions
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: CONFIG.cameraSettings
+          });
+          stream.getTracks().forEach(track => track.stop());
+          logger.info('Camera permissions granted');
+        } catch (cameraError) {
+          logger.error('Camera access error:', cameraError.message);
+          toggleLoading(false);
+          if (cameraError.name === 'NotAllowedError') {
+            alert('Camera access was denied. Please allow camera access and try again.');
+          } else if (cameraError.name === 'NotFoundError') {
+            alert('No camera found. Please connect a camera and try again.');
+          } else {
+            alert(`Camera error: ${cameraError.message}`);
+          }
+          return false;
+        }
+        
+        try {
+          await webgazer.begin();
+          logger.info('WebGazer initialized successfully');
+          state.webgazerInitialized = true;
+          setupVideoFeed();
+          requestAnimationFrame(updateFPS);
+          toggleLoading(false);
+          return true;
+        } catch (error) {
+          logger.error('Failed to start WebGazer:', error.message);
+          toggleLoading(false);
+          alert(`Failed to start eye tracking: ${error.message}`);
+          return false;
+        }
+      } catch (error) {
+        logger.error('WebGazer initialization error:', error.message);
+        toggleLoading(false);
+        alert(`Eye tracking initialization failed: ${error.message}`);
+        return false;
+      }
+    }
+    
+    function setupVideoFeed() {
+      try {
+        let videoElement = document.getElementById('webgazerVideoFeed');
+        if (!videoElement) {
+          logger.warn('WebGazer video feed not found, creating fallback video element');
+          videoElement = document.createElement('video');
+          videoElement.id = 'webgazerVideoFeed';
+          videoElement.autoplay = true;
+          navigator.mediaDevices.getUserMedia({ 
+            video: CONFIG.cameraSettings
+          }).then(stream => {
+            videoElement.srcObject = stream;
+            logger.info('Fallback video feed created');
+          }).catch(error => {
+            logger.error('Failed to create fallback video feed:', error.message);
+          });
+        }
+        
+        const webcamContainer = document.getElementById('webcam-container');
+        if (webcamContainer) {
+          webcamContainer.innerHTML = '';
+          webcamContainer.appendChild(videoElement);
+          videoElement.style.width = '100%';
+          videoElement.style.height = '100%';
+          logger.info('Video feed set up successfully');
+        }
+      } catch (error) {
+        logger.error('Error setting up video feed:', error.message);
+      }
+    }
+    
+    function handleGazeData(data, elapsedTime) {
+      if (!data || !state.isExperimentRunning) return;
+      
+      try {
+        state.frameCounter++;
+        if (data.x === null || data.y === null || isNaN(data.x) || isNaN(data.y)) return;
+        
+        state.gazeHistory.x.push(data.x);
+        state.gazeHistory.y.push(data.y);
+        
+        if (state.gazeHistory.x.length > CONFIG.smoothingWindow) {
+          state.gazeHistory.x.shift();
+          state.gazeHistory.y.shift();
+        }
+        
+        let weightedSumX = 0;
+        let weightedSumY = 0;
+        let totalWeight = 0;
+        for (let i = 0; i < state.gazeHistory.x.length; i++) {
+          const weight = i + 1;
+          weightedSumX += state.gazeHistory.x[i] * weight;
+          weightedSumY += state.gazeHistory.y[i] * weight;
+          totalWeight += weight;
+        }
+        
+        const avgX = weightedSumX / totalWeight;
+        const avgY = weightedSumY / totalWeight;
+        
+        const point = {
+          x: parseFloat(avgX.toFixed(4)),
+          y: parseFloat(avgY.toFixed(4)),
+          timestamp: Date.now(),
+          raw: { x: data.x, y: data.y }
+        };
+        
+        if (point.x < 0 || point.y < 0 || point.x > window.innerWidth * 1.2 || point.y > window.innerHeight * 1.2) {
+          return;
+        }
+        
+        if (CONFIG.enableDataCollection && state.gazeData.length < CONFIG.maxGazePoints) {
+          state.gazeData.push(point);
+        }
+        
+        state.pointsCollected++;
+        updateGazeDisplay(point);
+      } catch (error) {
+        logger.error('Error processing gaze data:', error.message);
+      }
+    }
+    
+    function updateGazeDisplay(point) {
+      const gazePoint = document.getElementById('gaze-point');
+      if (gazePoint) {
+        gazePoint.style.left = point.x + 'px';
+        gazePoint.style.top = point.y + 'px';
+      }
+      
+      try {
+        const gazeXElement = document.getElementById('gaze-x');
+        const gazeYElement = document.getElementById('gaze-y');
+        const pointCountElement = document.getElementById('point-count');
+        
+        if (gazeXElement) gazeXElement.textContent = point.x.toFixed(2);
+        if (gazeYElement) gazeYElement.textContent = point.y.toFixed(2);
+        if (pointCountElement) pointCountElement.textContent = state.pointsCollected;
+      } catch (error) {
+        logger.error('Error updating gaze display:', error.message);
+      }
+    }
+    
+    function updateFPS(timestamp) {
+      if (!state.lastFrameTime) {
+        state.lastFrameTime = timestamp;
+        state.lastFpsUpdate = timestamp;
+      }
+      
+      const elapsed = timestamp - state.lastFpsUpdate;
+      if (elapsed >= 1000) {
+        const fps = Math.round((state.frameCounter * 1000) / elapsed);
+        state.fps = fps;
+        state.frameCounter = 0;
+        state.lastFpsUpdate = timestamp;
+        
+        const fpsElement = document.getElementById('fps-count');
+        if (fpsElement) {
+          fpsElement.textContent = fps;
+        }
+      }
+      
+      state.lastFrameTime = timestamp;
+      requestAnimationFrame(updateFPS);
+    }
+    
+    // Calibration setup: creates calibration points and handles clicks
+    function setupCalibration() {
+      try {
+        const container = document.getElementById('calibration-area');
+        if (!container) throw new Error('Calibration container not found');
+        container.innerHTML = '';
+        
+        const positions = [
+          {x: '10%', y: '10%'},
+          {x: '50%', y: '10%'},
+          {x: '90%', y: '10%'},
+          {x: '10%', y: '50%'},
+          {x: '50%', y: '50%'},
+          {x: '90%', y: '50%'},
+          {x: '10%', y: '90%'},
+          {x: '50%', y: '90%'},
+          {x: '90%', y: '90%'}
+        ];
+        
+        positions.forEach((pos, index) => {
+          const point = document.createElement('div');
+          point.className = 'calibration-point';
+          point.style.left = pos.x;
+          point.style.top = pos.y;
+          point.dataset.clicks = 0;
+          
+          point.addEventListener('click', () => {
+            let clicks = parseInt(point.dataset.clicks, 10);
+            if (point.classList.contains('calibrated')) return;
+            clicks++;
+            point.dataset.clicks = clicks;
+            
+            // Visual feedback: scale up briefly
+            point.style.transform = 'translate(-50%, -50%) scale(1.2)';
+            setTimeout(() => {
+              point.style.transform = 'translate(-50%, -50%) scale(1)';
+            }, 150);
+            
+            if (clicks >= CONFIG.minCalibrationClicks) {
+              point.classList.add('calibrated');
+              point.style.backgroundColor = 'green';
+            }
+            
+            updateCalibrationProgress();
+          });
+          
+          container.appendChild(point);
+        });
+        
+        // Reset progress bar and disable continue button initially
+        document.getElementById('calibration-progress').style.width = '0%';
+        document.getElementById('continue-calibration-btn').disabled = true;
+      } catch (error) {
+        logger.error('Error setting up calibration:', error.message);
+      }
+    }
+    
+    function updateCalibrationProgress() {
+      const container = document.getElementById('calibration-area');
+      const points = container.querySelectorAll('.calibration-point');
+      let calibratedCount = 0;
+      points.forEach(point => {
+        if (point.classList.contains('calibrated')) {
+          calibratedCount++;
+        }
+      });
+      
+      const progressPercent = (calibratedCount / points.length) * 100;
+      document.getElementById('calibration-progress').style.width = progressPercent + '%';
+      
+      // Enable continue button if all points are calibrated
+      if (calibratedCount === points.length) {
+        document.getElementById('continue-calibration-btn').disabled = false;
+        updateStatus('Calibration complete', 'active');
+      } else {
+        updateStatus(`Calibrated ${calibratedCount} of ${points.length}`, 'default');
+      }
+    }
+    
+    function startTrackingTask() {
+      try {
+        state.isExperimentRunning = true;
+        state.startTime = Date.now();
+        updateTrackingTarget();
+        startTrackingTimer();
+      } catch (error) {
+        logger.error('Error starting tracking task:', error.message);
+      }
+    }
+    
+    function updateTrackingTarget() {
+      const trackingArea = document.getElementById('tracking-area');
+      const target = document.getElementById('tracking-target');
+      if (!trackingArea || !target) return;
+      
+      const areaRect = trackingArea.getBoundingClientRect();
+      const randomX = Math.random() * areaRect.width;
+      const randomY = Math.random() * areaRect.height;
+      
+      target.style.left = randomX + 'px';
+      target.style.top = randomY + 'px';
+    }
+    
+    function startTrackingTimer() {
+      const timeDisplay = document.getElementById('time-remaining');
+      const progressBar = document.getElementById('tracking-progress');
+      const duration = CONFIG.trackingDuration;
+      
+      const interval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
+        const remaining = Math.max(duration - elapsed, 0);
+        timeDisplay.textContent = remaining;
+        progressBar.style.width = ((elapsed / duration) * 100) + '%';
+        
+        if (remaining <= 0) {
+          clearInterval(interval);
+          endTrackingTask();
+        }
+      }, 1000);
+      
+      state.trackingTimer = interval;
+      
+      // Also update target position periodically
+      state.targetTimer = setInterval(updateTrackingTarget, CONFIG.targetUpdateInterval);
+    }
+    
+    function endTrackingTask() {
+      state.isExperimentRunning = false;
+      clearInterval(state.trackingTimer);
+      clearInterval(state.targetTimer);
+      showScreen('results-screen');
+      logger.info('Tracking task ended');
+    }
+    
+    function exportGazeData() {
+      try {
+        if (state.gazeData.length === 0) {
+          alert('No gaze data to export.');
+          return;
+        }
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "timestamp,x,y,raw_x,raw_y\n";
+        state.gazeData.forEach(point => {
+          csvContent += `${point.timestamp},${point.x},${point.y},${point.raw.x},${point.raw.y}\n`;
+        });
+        
+        const encodedUri = encodeURI(csvContent);
+        const a = document.createElement('a');
+        a.href = encodedUri;
+        a.download = `gaze_data_${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        logger.info('Gaze data exported successfully');
+      } catch (error) {
+        logger.error('Error exporting gaze data:', error.message);
+      }
+    }
+    
+    function restartExperiment() {
+      // Reset state variables and UI
+      state.gazeData = [];
+      state.pointsCollected = 0;
+      state.isCalibrated = false;
+      state.isExperimentRunning = false;
+      state.gazeHistory = { x: [], y: [] };
+      
+      // Clear calibration area
+      const calibrationArea = document.getElementById('calibration-area');
+      if (calibrationArea) calibrationArea.innerHTML = '';
+      
+      // Reset debug stats
+      document.getElementById('gaze-x').textContent = '0';
+      document.getElementById('gaze-y').textContent = '0';
+      document.getElementById('point-count').textContent = '0';
+      
+      showScreen('welcome-screen');
+      logger.info('Experiment restarted');
+    }
+    
+    // Attach event listeners on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('start-btn').addEventListener('click', async () => {
+        showScreen('calibration-screen');
+        try {
+          await loadWebGazer();
+          const initialized = await initWebGazer();
+          if (initialized) {
+            setupCalibration();
+          }
+        } catch (error) {
+          logger.error('Error during experiment initialization:', error.message);
+        }
+      });
+      
+      document.getElementById('skip-calibration-btn').addEventListener('click', () => {
+        state.isCalibrated = true;
+        showScreen('tracking-screen');
+        startTrackingTask();
+      });
+      
+      document.getElementById('continue-calibration-btn').addEventListener('click', () => {
+        state.isCalibrated = true;
+        showScreen('tracking-screen');
+        startTrackingTask();
+      });
+      
+      document.getElementById('end-test-btn').addEventListener('click', () => {
+        endTrackingTask();
+      });
+      
+      document.getElementById('export-data-btn').addEventListener('click', () => {
+        exportGazeData();
+      });
+      
+      document.getElementById('restart-btn').addEventListener('click', () => {
+        restartExperiment();
+      });
+    });
+  </script>
+</body>
+</html>
